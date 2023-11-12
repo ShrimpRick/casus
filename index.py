@@ -1,48 +1,70 @@
-from mindstorms import MSHub, Motor, MotorPair, ColorSensor, DistanceSensor, App
-from mindstorms.control import wait_for_seconds, wait_until, Timer
-from mindstorms.operator import greater_than, greater_than_or_equal_to, less_than, less_than_or_equal_to, equal_to, not_equal_to
-import math
-import hub
-import runtime
-import sys
-import system
-import mindstorms
-from mpy_robot_tools.rc import RCReceiver, R_STICK_VER, L_STICK_HOR, SETTING1, L_TRIGGER
+from hub import port
+import runloop
+import distance_sensor
+import color_sensor
+import motor
+import motor_pair
+import force_sensor
 
-import bluetooth
-import random
-import struct
-import time
-import micropython
-import ubinascii
+async def main():
+    speed = -100 # the riding speed
+    motor_pair.pair(motor_pair.PAIR_1, port.C, port.E) # this pairs both wheels to eachother
 
+    def forward():
+        motor_pair.move(motor_pair.PAIR_1, 0, velocity=speed) # ride forward in a straight line
 
-from micropython import const
+    def leftturn():
+        motor_pair.move_tank(motor_pair.PAIR_1, -10, -100) # ride to the left, because the left wheel spins slower then the right
 
+    def rightturn():
+        motor_pair.move_tank(motor_pair.PAIR_1, -100, -10) # ride to the right, because the right wheel spins slower then the left
 
-# Create your objects here.
-hub = MSHub()
-
-# Write your program here.
-hub.speaker.beep()
-
-hub = MSHub()
+    def grijpvast(): # this function is to close the griphook
+        motor.run(port.B, 1000)
 
 
+    def grijplos(): # this  function is to open the griphook
+        motor.run(port.B, -1000)
 
-color_sensor = ColorSensor('A')# collor
-motor_c = Motor('C')# Wielen
-motor_e = Motor('E')# Wielen
-distance_sensor = DistanceSensor('D')# Afstandssensor
+        
 
+    def grijpswitch(variable): # this function is made so that the hook keeps closed, or opened when riding on other colors, but changes when it rides over blue
+        if variable == 0:
+            return 1
+        return 0
 
+    # this sets the standard options for the variables
+    loop = True
+    variable = 1
+    waitbuttonpress = 1
+    while loop:
 
-motor_pair = MotorPair('C', 'E')# bofe wielen
-motor_pair.set_default_speed(-100)
-# motor_pair.start()
+        if force_sensor.pressed(port.F) == True: # this is the button, which acts as a emergency button. It stops or starts the robots loop
+            if waitbuttonpress == 0:
+                waitbuttonpress = 1
+            else:
+                waitbuttonpress = 0
+            
+        elif  waitbuttonpress == 0:
+            motor_pair.stop(motor_pair.PAIR_1)
+            continue
 
+        colordetect = color_sensor.color(port.A) # this is a variable which uses the color sensor to know which color he is riding on
+        if colordetect == 0: # 0 = black, which lets it ride forward (color has to be changed depending on the color used on the track)
+            forward()
+        elif colordetect == 10: # 10 = white, which lets it ride to the right (color has to be changed depending on the colors and direction of the track)
+            rightturn()
+        elif colordetect == 9: # 9 = red, which lets him ride to the left (color has to be changed depending on the colors and direction of the track)
+            leftturn()
+        elif colordetect == 3: # 3 = blue, which lets him change the variable number, so it either opens or closes the griphook (color has to be changed depending on the color used on the track)
+            variable = grijpswitch(variable)
+        elif colordetect == 7: # 7 = yellow, which stops the loop, means it is the end (color has to be changed depending on the color used on the track)
+            loop = False
+            motor_pair.stop(motor_pair.PAIR_1)
 
-hub.speaker.play_sound("yes")
-# while True:
-#         motor_c.start()
-#         motor_e.start()
+        if variable == 0: # this is the variable used to know if the griphook has to be closed or opened
+            grijpvast()
+        else:
+            grijplos()
+
+runloop.run(main()) # this runs the robots program
